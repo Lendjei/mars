@@ -1,4 +1,4 @@
-var Express = require('express'),
+var Express = require('feathers'),
         Http = require('http'),
         Cookies = require('cookies'),
         gaikan = require('gaikan'),
@@ -8,6 +8,23 @@ var Express = require('express'),
 var app = Express(),
         bus = app.bus = require('../../lib/system/bus'),
         log4js = require('../../lib/system/logger');
+
+
+var path = require('path');
+var serveStatic = require('feathers').static;
+var favicon = require('serve-favicon');
+var compress = require('compression');
+var cors = require('cors');
+var feathers = require('feathers');
+var configuration = require('feathers-configuration');
+var hooks = require('feathers-hooks');
+var rest = require('feathers-rest');
+var bodyParser = require('body-parser');
+var socketio = require('feathers-socketio');
+
+
+var cookieParser = require('cookie-parser');
+var connect = require('connect');
 
 process.on('disconnect', function () {
     console.log('parent exited');
@@ -22,23 +39,35 @@ process.on('uncaughtException', function (e) {
 if (log4js)
     app.use(log4js.connectLogger(log4js.getLogger('http'), {level: 'auto'}));
 
-app.use(Express.cookieParser());
+//app.use(Express.cookieParser()); - old
+app.use(cookieParser());
 
 var session = bus.config.get("session") || {secret: "secret"};
 
-var sessionStore = new Express.session.MemoryStore();
+
+
+/* ---------------- old
+var sessionStore = new Express.session.MemoryStore();//
+var sessionStore = new connect.session.MemoryStore();
 var redisCfg = bus.config.get("redis");
 if (redisCfg) {
-    var Session = require('express-session'),
-            RedisStore = require('connect-redis')(Session);
-    sessionStore = new RedisStore(redisCfg);
-    sessionStore.client.on('connect', function () {
-        bus.emit('message', {category: 'http', type: 'info', msg: 'Redis store connected'});//, socket, upgradeHead, cb);
-        //console.log('redis connected');
-    });
+   var Session = require('express-session'),
+           RedisStore = require('connect-redis')(Session);
+   sessionStore = new RedisStore(redisCfg);
+   sessionStore.client.on('connect', function () {
+       bus.emit('message', {category: 'http', type: 'info', msg: 'Redis store connected'});//, socket, upgradeHead, cb);
+       //console.log('redis connected');
+   });
 }
+var MemoryStore = express.session.MemoryStore;
 session.store = sessionStore;
-app.use(Express.session(session));
+app.use(Express.session(session));*/
+
+var session = require('express-session');
+var sessionStore = new session.MemoryStore();
+app.use(session({
+  secret: 'secret'
+}));
 app.set('webPath', bus.config.get("webPath") || '');
 app.set('trustedNet', bus.config.get("trustedNet"));
 
@@ -79,7 +108,7 @@ app.get('*', function (req, res, next) {
     if (app.get('viewsList').indexOf(req.url.replace(/^\//, '') + '.html') !== -1)
         res.redirect('/auth?referer=' + req.url);
     else
-        res.json(403, {success: false, /*url: req.url,*/ message: 'Access denied, please log in'});
+        res.status(status).json(403, {success: false, /*url: req.url,*/ message: 'Access denied, please log in'});
 });
 
 router.init(app);
